@@ -17,9 +17,23 @@ import pymysql
 
 TZ = ZoneInfo("Asia/Shanghai")
 MAX_CONTENT_LEN = 20000
+MIN_CONTENT_LEN = 80
 LINE_RE = re.compile(
     r"^\s*(\d+)\.\s*(.+?)(?:（([^）]+)）|\(([^)]+)\))\s*$"
 )
+JUNK_CONTENT_RE = re.compile(
+    r"页面没有找到|将会带您进入新浪首页|page not found|"
+    r"sorry,\s*we can't find the page|"
+    r"the page you're looking for can't be found|"
+    r"404 not found|access denied|403 forbidden|"
+    r"下载客户端|无障碍|账号设置|我的关注|我的收藏|退出登录|"
+    r"请先登录|登录后查看|个人中心",
+    re.IGNORECASE,
+)
+TITLE_STOPWORDS = {
+    "正式", "通报", "处理", "结果", "关于", "今日", "今天", "最新",
+    "消息", "报道", "新闻", "宣布", "确认", "相关", "情况", "问题",
+}
 
 
 def _optional_str(row: dict[str, Any], key: str, max_len: int | None = None) -> str | None:
@@ -31,6 +45,41 @@ def _optional_str(row: dict[str, Any], key: str, max_len: int | None = None) -> 
         return None
     if max_len is not None and len(text) > max_len:
         return text[:max_len]
+    return text
+
+
+def _title_markers(title: str) -> list[str]:
+    markers: list[str] = []
+    for token in re.findall(r"[\u4e00-\u9fff]{2,}|[A-Za-z]{3,}|\d{2,}", title):
+        if token in TITLE_STOPWORDS:
+            continue
+        markers.append(token)
+    return markers
+
+
+def is_junk_content(content: str | None, title: str | None = None) -> bool:
+    if not content:
+        return False
+    text = content.strip()
+    if len(text) < MIN_CONTENT_LEN:
+        return True
+    if JUNK_CONTENT_RE.search(text):
+        return True
+    if title:
+        markers = _title_markers(title)
+        if markers and not any(marker.casefold() in text.casefold() for marker in markers):
+            return True
+    return False
+
+
+def sanitize_content(content: str | None, title: str | None = None) -> str | None:
+    if not content:
+        return None
+    text = content.strip()
+    if is_junk_content(text, title):
+        return None
+    if len(text) > MAX_CONTENT_LEN:
+        return text[:MAX_CONTENT_LEN]
     return text
 
 
@@ -112,7 +161,10 @@ def normalize_items(raw: Any, run_date: date) -> list[dict[str, Any]]:
                 "url": _optional_str(row, "url", 2048),
                 "region": _optional_str(row, "region"),
                 "raw_line": _optional_str(row, "raw_line"),
-                "content": _optional_str(row, "content", MAX_CONTENT_LEN),
+                "content": sanitize_content(
+                    _optional_str(row, "content", MAX_CONTENT_LEN),
+                    title,
+                ),
             }
         )
     return items
@@ -133,6 +185,28 @@ ON DUPLICATE KEY UPDATE
 """
 
 
+def clean_junk_rows(run_date: date | None = None) -> int:
+    sql = "SELECT id, title, content FROM daily_trending_news WHERE content IS NOT NULL"
+    params: tuple[Any, ...] = ()
+    if run_date is not None:
+        sql += " AND run_date = %s"
+        params = (run_date.isoformat(),)
+    cleared = 0
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            rows = cur.fetchall()
+            for row_id, title, content in rows:
+                if is_junk_content(content, title):
+                    cur.execute(
+                        "UPDATE daily_trending_news SET content = NULL WHERE id = %s",
+                        (row_id,),
+                    )
+                    cleared += 1
+        conn.commit()
+    return cleared
+
+
 def upsert(items: list[dict[str, Any]]) -> int:
     if not items:
         return 0
@@ -149,6 +223,11 @@ def main() -> int:
     parser.add_argument("--date", help="run_date YYYY-MM-DD, default today Asia/Shanghai")
     parser.add_argument("--json", help="path to JSON file")
     parser.add_argument("--text", help="path to plain text list (SKILL output style)")
+    parser.add_argument(
+        "--clean-junk",
+        action="store_true",
+        help="set existing junk/mismatched content to NULL and exit",
+    )
     args = parser.parse_args()
 
     run_date = (
@@ -156,6 +235,11 @@ def main() -> int:
         if args.date
         else datetime.now(TZ).date()
     )
+
+    if args.clean_junk:
+        n = clean_junk_rows(run_date if args.date else None)
+        print(f"cleared {n} junk content rows")
+        return 0
 
     if args.json:
         payload = json.loads(Path(args.json).read_text(encoding="utf-8"))
