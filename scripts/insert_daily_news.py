@@ -27,7 +27,8 @@ JUNK_CONTENT_RE = re.compile(
     r"the page you're looking for can't be found|"
     r"404 not found|access denied|403 forbidden|"
     r"下载客户端|无障碍|账号设置|我的关注|我的收藏|退出登录|"
-    r"请先登录|登录后查看|个人中心",
+    r"请先登录|登录后查看|个人中心|"
+    r"找不到该页面|无法找到该页面|页面未找到",
     re.IGNORECASE,
 )
 TITLE_STOPWORDS = {
