@@ -229,6 +229,20 @@ web_fetch("https://www.nature.com/news", maxChars=4000)         # Nature
 - 像新闻标题一样描述事件
 - 不要单独一个词或没头没尾的内容
 - 后面标注来源
+- 必须记录原文链接，并抓取正文入库（见「抓取正文」）
+
+### 抓取正文（必做）
+
+筛选出 50 条后，对**每一条**补齐 `url` 和 `content`，不能只留标题：
+
+1. **原文链接**：优先用热榜条目或媒体首页里的文章 URL；没有直链时，用标题在权威信源里定位后再 `web_fetch` 文章页。
+2. **拉取正文**：对每条原文再执行一次 `web_fetch(url, maxChars=8000)`，从页面中抽出新闻正文（导语 + 主体事实），去掉导航、广告、评论、相关推荐。
+3. **正文要求**：
+   - 纯文本，不含 HTML
+   - 忠实于原文事实，不改写、不评论
+   - 一般 400–2000 字；超长只保留开头与关键段落，总长不超过 20000 字
+   - 抓不到正文时 `content` 可留空，但 `url` 仍应尽量填写
+4. 国际来源若只有英文正文，按原文保存，不要翻译后再入库。
 
 ## 输出格式
 
@@ -260,12 +274,26 @@ web_fetch("https://www.nature.com/news", maxChars=4000)         # Nature
 
 表：`shell-updater.daily_trending_news`（DDL 见 `schema/daily_trending_news.sql`）
 
-生成榜单后，再写一份 JSON 并执行插入脚本（同一 `run_date` + `rank_no` 会覆盖更新）：
+生成榜单后，再写一份 JSON 并执行插入脚本（同一 `run_date` + `rank_no` 会覆盖更新标题/来源；`url`、`content` 仅在新值非空时覆盖）：
 
 ```json
 [
-  {"rank_no": 1, "title": "……", "source": "纽约时报", "region": "international"},
-  {"rank_no": 2, "title": "……", "source": "微博热搜", "region": "domestic"}
+  {
+    "rank_no": 1,
+    "title": "……",
+    "source": "纽约时报",
+    "region": "international",
+    "url": "https://www.nytimes.com/...",
+    "content": "文章正文纯文本……"
+  },
+  {
+    "rank_no": 2,
+    "title": "……",
+    "source": "微博热搜",
+    "region": "domestic",
+    "url": "https://weibo.com/...",
+    "content": "事件经过与关键事实……"
+  }
 ]
 ```
 

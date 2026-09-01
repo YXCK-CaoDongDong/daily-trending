@@ -16,9 +16,22 @@ from zoneinfo import ZoneInfo
 import pymysql
 
 TZ = ZoneInfo("Asia/Shanghai")
+MAX_CONTENT_LEN = 20000
 LINE_RE = re.compile(
     r"^\s*(\d+)\.\s*(.+?)(?:（([^）]+)）|\(([^)]+)\))\s*$"
 )
+
+
+def _optional_str(row: dict[str, Any], key: str, max_len: int | None = None) -> str | None:
+    value = row.get(key)
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if max_len is not None and len(text) > max_len:
+        return text[:max_len]
+    return text
 
 
 def load_env_file(path: Path) -> None:
@@ -64,8 +77,10 @@ def parse_text(text: str, run_date: date) -> list[dict[str, Any]]:
                 "rank_no": rank_no,
                 "title": title,
                 "source": source,
+                "url": None,
                 "region": None,
                 "raw_line": line.strip(),
+                "content": None,
             }
         )
     return items
@@ -93,9 +108,11 @@ def normalize_items(raw: Any, run_date: date) -> list[dict[str, Any]]:
                 "run_date": str(row.get("run_date") or run_date.isoformat()),
                 "rank_no": int(row.get("rank_no") or i),
                 "title": title,
-                "source": (str(row["source"]).strip() if row.get("source") else None),
-                "region": (str(row["region"]).strip() if row.get("region") else None),
-                "raw_line": (str(row["raw_line"]).strip() if row.get("raw_line") else None),
+                "source": _optional_str(row, "source"),
+                "url": _optional_str(row, "url", 2048),
+                "region": _optional_str(row, "region"),
+                "raw_line": _optional_str(row, "raw_line"),
+                "content": _optional_str(row, "content", MAX_CONTENT_LEN),
             }
         )
     return items
@@ -103,14 +120,16 @@ def normalize_items(raw: Any, run_date: date) -> list[dict[str, Any]]:
 
 UPSERT_SQL = """
 INSERT INTO daily_trending_news
-  (run_date, rank_no, title, source, region, raw_line)
+  (run_date, rank_no, title, source, url, region, raw_line, content)
 VALUES
-  (%(run_date)s, %(rank_no)s, %(title)s, %(source)s, %(region)s, %(raw_line)s)
+  (%(run_date)s, %(rank_no)s, %(title)s, %(source)s, %(url)s, %(region)s, %(raw_line)s, %(content)s)
 ON DUPLICATE KEY UPDATE
   title = VALUES(title),
   source = VALUES(source),
   region = VALUES(region),
-  raw_line = VALUES(raw_line)
+  raw_line = VALUES(raw_line),
+  url = COALESCE(NULLIF(VALUES(url), ''), url),
+  content = COALESCE(NULLIF(VALUES(content), ''), content)
 """
 
 
