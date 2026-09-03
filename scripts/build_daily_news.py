@@ -44,11 +44,11 @@ ITEMS = [
     {"rank_no": 25, "title": "赖清德当局称防务预算将破万亿新台币，国台办回应", "source": "中国新闻网", "region": "domestic", "url": "https://www.chinanews.com.cn/gn/2026/09-02/10688503.shtml"},
     {"rank_no": 26, "title": "山西省人大常委会原副主任岳普煜被开除党籍", "source": "中国新闻网", "region": "domestic", "url": "https://www.chinanews.com.cn/gn/2026/09-02/10689029.shtml"},
     {"rank_no": 27, "title": "中国气象局气象探测中心原主任李良序一审获刑十三年", "source": "中国新闻网", "region": "domestic", "url": "https://www.chinanews.com.cn/gn/2026/09-02/10688988.shtml"},
-    {"rank_no": 28, "title": "三部门联合部署加强水上运输和渔业船舶安全风险防范工作", "source": "中国新闻网", "region": "domestic", "url": "https://www.chinanews.com.cn/sh/2026/09-02/10688427.shtml"},
-    {"rank_no": 29, "title": "台风沙德尔复活后持续影响南方多地", "source": "中国新闻网", "region": "domestic", "url": "https://www.chinanews.com.cn/sh/2026/09-01/10687762.shtml"},
+    {"rank_no": 28, "title": "国务院安委会办公室联合交通运输部、农业农村部部署加强水上运输和渔业船舶安全防范", "source": "中国新闻网", "region": "domestic", "url": "https://www.chinanews.com.cn/sh/2026/09-02/10688427.shtml"},
+    {"rank_no": 29, "title": "台风沙德尔在南海再度加强为台风，中央气象台发布台风蓝色预警", "source": "中国新闻网", "region": "domestic", "url": "https://www.chinanews.com.cn/sh/2026/09-01/10687762.shtml"},
     {"rank_no": 30, "title": "中央网信办深入开展清朗整治AI应用乱象专项行动第二阶段工作", "source": "中国新闻网", "region": "domestic", "url": "https://www.chinanews.com.cn/gn/2026/09-02/10688509.shtml"},
     # international 31-50
-    {"rank_no": 31, "title": "特朗普称若伊朗实施报复，将遭美方更猛烈打击", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-02/10688366.shtml"},
+    {"rank_no": 31, "title": "特朗普警告伊朗若对美军袭击进行报复将遭更猛烈打击", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-02/10688366.shtml"},
     {"rank_no": 32, "title": "特朗普威胁随时准备对伊朗再次发动打击", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-03/10689171.shtml"},
     {"rank_no": 33, "title": "特朗普称对伊朗的新一轮打击不会持续太久", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-03/10689170.shtml"},
     {"rank_no": 34, "title": "伊朗称将继续打击美军基地，警告与美合作国家承担后果", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-02/10688613.shtml"},
@@ -57,7 +57,7 @@ ITEMS = [
     {"rank_no": 37, "title": "伊朗称一婚礼现场遇袭致4人死亡", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-02/10688595.shtml"},
     {"rank_no": 38, "title": "一沙特船只在霍尔木兹海峡发生安全事故，致两名船员遇难", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-02/10689011.shtml"},
     {"rank_no": 39, "title": "意大利向印尼提供一艘航母，换取40亿美元军火订单", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-02/10688832.shtml"},
-    {"rank_no": 40, "title": "秘鲁宣布与伊朗断交", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-02/10688429.shtml"},
+    {"rank_no": 40, "title": "秘鲁外交部宣布与伊朗断绝外交关系", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-02/10688429.shtml"},
     {"rank_no": 41, "title": "德国指认俄罗斯涉莱比锡机场袭击并宣布反制措施", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-02/10688374.shtml"},
     {"rank_no": 42, "title": "英国首相伯纳姆在议会发表声明，阐述施政方向", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-02/10688373.shtml"},
     {"rank_no": 43, "title": "英国政府推出重塑英国新政框架", "source": "中国新闻网", "region": "international", "url": "https://www.chinanews.com.cn/gj/2026/09-03/10689166.shtml"},
@@ -86,8 +86,8 @@ def fetch_url(url: str) -> dict:
 
 def _title_markers(title: str) -> list[str]:
     stop = {
-        "正式", "通报", "关于", "今日", "最新", "消息", "报道", "新闻",
-        "宣布", "确认", "相关", "情况", "问题", "多大", "代价", "称", "将",
+        "正式", "通报", "处理", "结果", "关于", "今日", "今天", "最新",
+        "消息", "报道", "新闻", "宣布", "确认", "相关", "情况", "问题",
     }
     markers: list[str] = []
     for chunk in re.findall(r"[\u4e00-\u9fff]{2,4}|[A-Za-z]{3,}|\d{2,}", title):
