@@ -62,6 +62,21 @@ def _domain(url: str) -> str:
     return urlparse(url).netloc.lower()
 
 
+def _pick_encoding(raw: bytes, candidates: tuple[str, ...] = ("utf-8", "gb2312", "gbk")) -> str:
+    best_enc = "utf-8"
+    best_score = -1
+    for enc in candidates:
+        try:
+            text = raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+        score = len(re.findall(r"[\u4e00-\u9fff]", text[:8000]))
+        if score > best_score:
+            best_score = score
+            best_enc = enc
+    return best_enc
+
+
 def _clean_lines(text: str) -> str:
     lines: list[str] = []
     for raw in text.splitlines():
@@ -148,9 +163,13 @@ def extract(soup: BeautifulSoup, url: str) -> str:
 def fetch(url: str) -> dict:
     try:
         resp = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT, allow_redirects=True)
-        resp.encoding = resp.apparent_encoding or "utf-8"
-        if _domain(url).endswith("chinanews.com.cn") and "charset=gb2312" in resp.text[:2000].lower():
-            resp.encoding = "gb2312"
+        host = _domain(url)
+        if host.endswith("chinanews.com.cn"):
+            resp.encoding = _pick_encoding(resp.content)
+        else:
+            resp.encoding = resp.apparent_encoding or "utf-8"
+            if host.endswith("chinanews.com.cn") and "charset=gb2312" in resp.text[:2000].lower():
+                resp.encoding = "gb2312"
         if resp.status_code >= 400:
             return {"url": url, "ok": False, "error": f"HTTP {resp.status_code}", "content": ""}
         soup = BeautifulSoup(resp.text, "lxml")
