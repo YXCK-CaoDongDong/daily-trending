@@ -11,6 +11,7 @@ import sys
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import pymysql
@@ -35,6 +36,58 @@ TITLE_STOPWORDS = {
     "正式", "通报", "处理", "结果", "关于", "今日", "今天", "最新",
     "消息", "报道", "新闻", "宣布", "确认", "相关", "情况", "问题",
 }
+DOMESTIC_HOST_SUFFIXES = (
+    ".cn",
+    "news.cn",
+    "xinhuanet.com",
+    "people.com.cn",
+    "cctv.com",
+    "chinanews.com",
+    "chinanews.com.cn",
+    "huanqiu.com",
+    "cankaoxiaoxi.com",
+    "caixin.com",
+    "jiemian.com",
+    "thepaper.cn",
+    "guancha.cn",
+    "yicai.com",
+    "21jingji.com",
+    "weibo.com",
+    "zhihu.com",
+    "baidu.com",
+    "toutiao.com",
+    "163.com",
+    "qq.com",
+    "sina.com.cn",
+    "sina.cn",
+    "chinadaily.com.cn",
+    "chinapress.com.my",
+    "tophub.today",
+)
+DOMESTIC_SOURCE_MARKERS = (
+    "新华",
+    "人民网",
+    "人民日报",
+    "观察者",
+    "澎湃",
+    "环球",
+    "参考消息",
+    "中国日报",
+    "央视",
+    "中新网",
+    "光明网",
+    "中国政府",
+    "商务部",
+    "百度",
+    "知乎",
+    "微博",
+    "网易",
+    "经济观察",
+    "中国报",
+    "36氪",
+    "虎嗅",
+    "今日头条",
+)
 
 
 def _optional_str(row: dict[str, Any], key: str, max_len: int | None = None) -> str | None:
@@ -70,6 +123,29 @@ def is_junk_content(content: str | None, title: str | None = None) -> bool:
         markers = _title_markers(title)
         if markers and not any(marker.casefold() in text.casefold() for marker in markers):
             return True
+    return False
+
+
+def _host_from_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    host = (urlparse(url).hostname or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host or None
+
+
+def is_domestic_origin(url: str | None, source: str | None = None) -> bool:
+    host = _host_from_url(url)
+    if host:
+        if host.endswith(".cn"):
+            return True
+        for suffix in DOMESTIC_HOST_SUFFIXES:
+            suffix = suffix.lstrip(".")
+            if host == suffix or host.endswith("." + suffix):
+                return True
+    if source:
+        return any(marker in source for marker in DOMESTIC_SOURCE_MARKERS)
     return False
 
 
@@ -153,14 +229,23 @@ def normalize_items(raw: Any, run_date: date) -> list[dict[str, Any]]:
         title = str(row.get("title") or "").strip()
         if not title:
             raise ValueError(f"Missing title at index {i}")
+        source = _optional_str(row, "source")
+        url = _optional_str(row, "url", 2048)
+        region = _optional_str(row, "region")
+        if region == "international" and is_domestic_origin(url, source):
+            print(
+                f"skip international item {i}: domestic origin {source or ''} {url or ''}",
+                file=sys.stderr,
+            )
+            continue
         items.append(
             {
                 "run_date": str(row.get("run_date") or run_date.isoformat()),
                 "rank_no": int(row.get("rank_no") or i),
                 "title": title,
-                "source": _optional_str(row, "source"),
-                "url": _optional_str(row, "url", 2048),
-                "region": _optional_str(row, "region"),
+                "source": source,
+                "url": url,
+                "region": region,
                 "raw_line": _optional_str(row, "raw_line"),
                 "content": sanitize_content(
                     _optional_str(row, "content", MAX_CONTENT_LEN),
