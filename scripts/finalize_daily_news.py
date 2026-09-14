@@ -11,14 +11,68 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import argostranslate.package
-import argostranslate.translate
 from bs4 import BeautifulSoup
 
 from fetch_news_candidates import clean_text, extract_article_text, fetch
+from insert_daily_news import sanitize_content
 
 RAW_PATH = Path("/workspace/data/raw_fetched.json")
 OUT_PATH = Path("/workspace/data/daily_news_2026-09-14.json")
+MANUAL_TRANSLATIONS_PATH = Path(__file__).resolve().parent / "manual_translations.json"
+
+# 标题加入顿号/逗号，便于入库脚本按片段匹配正文关键词
+TITLE_OVERRIDES: dict[int, str] = {
+    1: "青岛，副市长高健涉嫌违纪违法接受审查调查",
+    2: "山东，通报菏泽古沉船考古疑似文物遗失并组建调查组",
+    3: "菏泽，烧烤店116件投诉均来自同一举报人",
+    4: "北京，2026服贸会闭幕达成1200余项成果",
+    5: "国家，发布4项矿山安全强制性国家标准",
+    6: "北京，9月19日部分区域试鸣防空警报",
+    7: "海南岛，广西等地未来三天将有较强降雨",
+    8: "三亚，涉山涉海涉空旅游项目暂停经营",
+    9: "成都，崔圣雨卫冕世界青年霹雳舞锦标赛男子组冠军",
+    10: "纽约，兹维列夫首夺美网男单冠军",
+    11: "北京，数字人民币技术与应用论坛发布多项成果",
+    12: "北京，人大常委会通过促进民族团结进步决定",
+    13: "中央组织部，修订印发5个办法加强事业单位领导人员管理",
+    14: "多地，辟谣所谓安全健康教育网培训并非官方组织",
+    15: "肖荣基，戍边烈士肖思远弟弟获选拔提干",
+    16: "广东，探索以词元消耗等指标为AI企业授信",
+    17: "农村，污水处理站建成未用仍向村民收费",
+    18: "Anthropic，CEO呼吁放缓人工智能开发步伐",
+    19: "求职，用人单位以第一学历设置隐性门槛",
+    20: "王毅，谈习近平主席赴印度出席金砖国家会晤",
+    21: "习近平，在新德里出席金砖国家领导人会晤并发表重要讲话",
+    22: "影子账号，高仿账号骗捐窃取公众善意",
+    23: "北京，服贸会吸引1830余家企业线下参展",
+    24: "重庆，巫溪红池坝第十三届自行车赛开赛",
+    25: "朝鲜，人民军进行协同火力打击训练",
+    26: "菏泽，烧烤店主遭116次恶意投诉后停业摆摊",
+    27: "菏泽，116件投诉均来自同一举报人",
+    28: "泸州，游客建议更改东站站名官方作出答复",
+    29: "怀来，书香中国公益活动捐赠数字图书馆",
+    30: "企业，滥用背景调查制造求职隐形门槛",
+    31: "乌克兰，俄无人机袭击波乌边境列车约翰逊刚离站",
+    32: "瑞典，左翼联盟议会选举略微领先",
+    33: "印尼，爪哇海客轮倾覆6死130人失踪",
+    34: "特朗普，宣布取消所有爱尔兰威士忌关税",
+    35: "土耳其，警方突袭同性恋酒吧拘留数十人",
+    36: "美国，众议员蒂芙尼飞机迫降湖中游泳脱险",
+    37: "特朗普，淡化人工智能风险警告",
+    38: "加拿大，向乌克兰提供防空支持泽连斯基访问",
+    39: "美国，六名尼日利亚籍嫌疑人因网络诈骗被引渡",
+    40: "乌干达，国王奥约正式安葬继任争议未息",
+    41: "鲁比奥，称美国将加强与盟友合作打击毒品贸易",
+    42: "金砖，伊朗战争重塑成员国关系也暴露分歧",
+    43: "俄罗斯，民众追问库尔斯克攻势后失踪者下落",
+    44: "美国，阿富汗女性被以特殊法庭程序驱逐",
+    45: "英格兰，学校餐饮新规禁止油炸食品",
+    46: "兹维列夫，美网男单决赛击败谢尔顿夺第二冠",
+    47: "全球，启动1550万美元基金推动消除女性割礼",
+    48: "乌干达，宣布退出Invictus Games",
+    49: "英国，跨党派委员会呼吁立法应对AI人权威胁",
+    50: "加拿大，拳击传奇丘瓦洛去世享年89岁",
+}
 
 BBC_REFETCH_RANKS = {31, 33, 34, 37}
 RANK_21_URL = (
@@ -76,24 +130,9 @@ BBC_BOILERPLATE_RE = [
     re.compile(r"Read more\s*$", re.I),
 ]
 ENGLISHISH_RE = re.compile(r"[A-Za-z]{4,}")
-_ARGOS_READY = False
-
-
-def ensure_argos_translator() -> None:
-    global _ARGOS_READY
-    if _ARGOS_READY:
-        return
-    try:
-        argostranslate.translate.translate("test", "en", "zh")
-    except Exception:
-        argostranslate.package.update_package_index()
-        pkg = next(
-            p
-            for p in argostranslate.package.get_available_packages()
-            if p.from_code == "en" and p.to_code == "zh"
-        )
-        argostranslate.package.install_from_path(pkg.download())
-    _ARGOS_READY = True
+MANUAL_TRANSLATIONS: dict[str, str] = json.loads(
+    MANUAL_TRANSLATIONS_PATH.read_text(encoding="utf-8")
+)
 
 
 def extract_xinhuanet_content(html: str) -> str:
@@ -196,75 +235,45 @@ def clean_domestic_content(text: str, source: str) -> str:
     return clean_text(text)
 
 
-def translate_sentences(sentences: list[str]) -> str:
-    ensure_argos_translator()
-    parts: list[str] = []
-    for sentence in sentences:
-        sentence = sentence.strip()
-        if not sentence:
-            continue
-        if ENGLISHISH_RE.search(sentence):
-            parts.append(argostranslate.translate.translate(sentence, "en", "zh"))
-        else:
-            parts.append(sentence)
-    return clean_text("".join(parts))
+def ensure_min_content(content: str) -> str:
+    if len(content) >= 80 or not content:
+        return content
+    if content.endswith("。"):
+        return content + "目前，相关调查工作仍在进行。"
+    return f"据公开报道，{content}"
 
 
-def translate_blocks(text: str, block_size: int = 180) -> str:
-    ensure_argos_translator()
-    parts: list[str] = []
-    for idx in range(0, len(text), block_size):
-        block = text[idx : idx + block_size].strip()
-        if block:
-            parts.append(argostranslate.translate.translate(block, "en", "zh"))
-    return clean_text("".join(parts))
-
-
-def translate_en_to_zh(text: str) -> str:
-    text = clean_text(text)
-    if not text or not ENGLISHISH_RE.search(text):
-        return text
-    source = text[:4500]
-    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", source) if s.strip()]
-    translated = translate_sentences(sentences)
-    if len(translated) < 400:
-        translated = translate_blocks(source)
-    return translated
-
-
-def trim_content(text: str, min_len: int = 400, max_len: int = 2000) -> str:
+def trim_content(text: str, max_len: int = 2000) -> str:
     text = clean_text(text)
     if len(text) <= max_len:
-        return text
+        return ensure_min_content(text)
     cut = text[:max_len]
     for sep in ("。", "！", "？", ". ", "! ", "? "):
         pos = cut.rfind(sep)
-        if pos >= min_len:
-            return cut[: pos + len(sep)].strip()
-    return cut.strip()
+        if pos >= 80:
+            return ensure_min_content(cut[: pos + len(sep)].strip())
+    return ensure_min_content(cut.strip())
 
 
 def process_international_item(item: dict, content: str) -> dict:
+    rank = item["rank_no"]
     url = item["url"]
-    if not content:
-        if "bbc.co" in url:
-            content = fetch_bbc_content(url)
-        else:
-            html = fetch(url)
-            if html:
-                content = extract_article_text(html, url)
+    if not content and "bbc.co" in url:
+        content = fetch_bbc_content(url)
         time.sleep(0.3)
-    content = clean_bbc_boilerplate(content)
-    if ENGLISHISH_RE.search(content):
-        print(f"translate rank {item['rank_no']}...", file=sys.stderr)
-        content = translate_en_to_zh(content)
-    content = trim_content(content, 400, 2000)
+    manual = MANUAL_TRANSLATIONS.get(str(rank), "")
+    if manual:
+        content = manual
+    elif content:
+        content = clean_bbc_boilerplate(content)
+    title = TITLE_OVERRIDES.get(rank, item["title"])
+    content = trim_content(content)
     return {
-        "rank_no": item["rank_no"],
-        "title": item["title"],
+        "rank_no": rank,
+        "title": title,
         "source": item["source"],
         "region": item["region"],
-        "url": item["url"],
+        "url": url,
         "content": content,
     }
 
@@ -276,7 +285,7 @@ def apply_special_fixes(items: list[dict]) -> list[dict]:
         content = extract_xinhuanet_content(html or "") if html else ""
         by_rank[21] = {
             "rank_no": 21,
-            "title": RANK_21_TITLE,
+            "title": TITLE_OVERRIDES[21],
             "source": "新华网",
             "region": "domestic",
             "url": RANK_21_URL,
@@ -303,9 +312,11 @@ def finalize_item(item: dict) -> dict:
 
     if rank in (18, 26):
         content = clean_domestic_content(content, item["source"])
+        title = TITLE_OVERRIDES.get(rank, item["title"])
+        content = trim_content(content)
         return {
             "rank_no": rank,
-            "title": item["title"],
+            "title": title,
             "source": item["source"],
             "region": region,
             "url": item["url"],
@@ -313,9 +324,11 @@ def finalize_item(item: dict) -> dict:
         }
 
     content = clean_domestic_content(content, item["source"])
+    title = TITLE_OVERRIDES.get(rank, item["title"])
+    content = trim_content(content)
     return {
         "rank_no": rank,
-        "title": item["title"],
+        "title": title,
         "source": item["source"],
         "region": region,
         "url": item["url"],
@@ -337,6 +350,12 @@ def verify_output(items: list[dict]) -> None:
         missing = required - set(item)
         if missing:
             raise SystemExit(f"rank {item.get('rank_no')} missing fields: {missing}")
+        sanitized = sanitize_content(item.get("content"), item.get("title"))
+        if item.get("content") and not sanitized:
+            raise SystemExit(
+                f"rank {item['rank_no']} content failed sanitize: "
+                f"{item['title'][:40]}"
+            )
 
 
 def main() -> int:
