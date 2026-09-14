@@ -364,8 +364,14 @@ def main() -> int:
         payload = json.load(sys.stdin)
         items = normalize_items(payload, run_date)
 
+    if not items:
+        print(f"ERROR: no items to upsert for {run_date.isoformat()}", file=sys.stderr)
+        return 1
     n = upsert(items)
     print(f"upserted {n} rows for {run_date.isoformat()}")
+    if n == 0:
+        print("ERROR: upsert wrote 0 rows", file=sys.stderr)
+        return 1
     return 0
 
 
