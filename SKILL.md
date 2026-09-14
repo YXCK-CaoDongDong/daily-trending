@@ -309,5 +309,6 @@ web_fetch("https://www.nature.com/news", maxChars=4000)         # Nature
 
 ```bash
 # 凭据来自仓库根目录 .env（勿提交）；Cloud Agent 需配置同名环境变量
+python -m pip install -r requirements.txt
 python scripts/insert_daily_news.py --json /path/to/news.json
 ```

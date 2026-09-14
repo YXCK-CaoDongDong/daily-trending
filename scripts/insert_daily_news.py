@@ -14,7 +14,12 @@ from typing import Any
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
-import pymysql
+try:
+    import pymysql
+except ImportError as exc:
+    raise SystemExit(
+        "pymysql is not installed. Run: python -m pip install -r requirements.txt"
+    ) from exc
 
 TZ = ZoneInfo("Asia/Shanghai")
 MAX_CONTENT_LEN = 20000
@@ -173,6 +178,28 @@ def load_env_file(path: Path) -> None:
         os.environ.setdefault(key, value)
 
 
+def require_mysql_env() -> None:
+    required = (
+        "MYSQL_HOST",
+        "MYSQL_PORT",
+        "MYSQL_USER",
+        "MYSQL_PASSWORD",
+        "MYSQL_DATABASE",
+    )
+    missing = [key for key in required if not os.environ.get(key)]
+    if missing:
+        raise SystemExit(
+            "missing MySQL env: " + ", ".join(missing)
+            + ". Set them in Cloud Agents Secrets."
+        )
+    print(
+        "mysql target "
+        f"{os.environ['MYSQL_HOST']}:{os.environ['MYSQL_PORT']}/"
+        f"{os.environ['MYSQL_DATABASE']} user={os.environ['MYSQL_USER']}",
+        file=sys.stderr,
+    )
+
+
 def db_conn():
     return pymysql.connect(
         host=os.environ.get("MYSQL_HOST", "127.0.0.1"),
@@ -305,6 +332,7 @@ def upsert(items: list[dict[str, Any]]) -> int:
 
 def main() -> int:
     load_env_file(Path(__file__).resolve().parents[1] / ".env")
+    require_mysql_env()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--date", help="run_date YYYY-MM-DD, default today Asia/Shanghai")
     parser.add_argument("--json", help="path to JSON file")
