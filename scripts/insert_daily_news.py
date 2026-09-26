@@ -112,8 +112,20 @@ def _title_markers(title: str) -> list[str]:
     for token in re.findall(r"[\u4e00-\u9fff]{2,}|[A-Za-z]{3,}|\d{2,}", title):
         if token in TITLE_STOPWORDS:
             continue
-        markers.append(token)
-    return markers
+        if len(token) <= 4:
+            markers.append(token)
+            continue
+        for i in range(len(token) - 1):
+            seg = token[i : i + 2]
+            if seg not in TITLE_STOPWORDS:
+                markers.append(seg)
+    seen: set[str] = set()
+    out: list[str] = []
+    for m in markers:
+        if m not in seen:
+            seen.add(m)
+            out.append(m)
+    return out
 
 
 def is_junk_content(content: str | None, title: str | None = None) -> bool:
@@ -126,8 +138,10 @@ def is_junk_content(content: str | None, title: str | None = None) -> bool:
         return True
     if title:
         markers = _title_markers(title)
-        if markers and not any(marker.casefold() in text.casefold() for marker in markers):
-            return True
+        if markers:
+            hits = sum(1 for marker in markers if marker.casefold() in text.casefold())
+            if hits < min(2, len(markers)):
+                return True
     return False
 
 
