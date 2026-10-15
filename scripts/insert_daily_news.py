@@ -109,7 +109,7 @@ def _optional_str(row: dict[str, Any], key: str, max_len: int | None = None) -> 
 
 def _title_markers(title: str) -> list[str]:
     markers: list[str] = []
-    for token in re.findall(r"[\u4e00-\u9fff]{2,}|[A-Za-z]{3,}|\d{2,}", title):
+    for token in re.findall(r"[\u4e00-\u9fff]{2,4}|[A-Za-z]{3,}|\d{2,}", title):
         if token in TITLE_STOPWORDS:
             continue
         markers.append(token)
